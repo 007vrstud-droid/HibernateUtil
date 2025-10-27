@@ -1,16 +1,31 @@
-package com.example;
+package com.example.repository;
 
+import com.example.model.UserEntity;
+import com.example.util.HibernateUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Session;
+import org.hibernate.SessionFactory;
 import org.hibernate.Transaction;
 
+import java.util.List;
+
 @Slf4j
-public class UserDao {
+public class UserDaoImpl implements UserDao {
+    private final SessionFactory sessionFactory;
+
+    public UserDaoImpl(SessionFactory sessionFactory) {
+        this.sessionFactory = sessionFactory;
+    }
+
+    public UserDaoImpl() {
+        this.sessionFactory = HibernateUtil.getSessionFactory();
+    }
 
     /**
      * Сохраняет нового пользователя в базе данных.
      */
-    public void saveUser(User user) {
+
+    public void saveUser(UserEntity user) {
         Transaction transaction = null;
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
             transaction = session.beginTransaction();
@@ -28,9 +43,9 @@ public class UserDao {
     /**
      * Извлекает пользователя из базы данных по его идентификатору.
      */
-    public User getUser(Long id) {
+    public UserEntity getUser(Long id) {
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-            return session.get(User.class, id);
+            return session.get(UserEntity.class, id);
         } catch (Exception e) {
             log.error("Ошибка при получении пользователя по id {}", id, e);
             return null;
@@ -38,9 +53,21 @@ public class UserDao {
     }
 
     /**
+     * Извлекает всех пользователей из базы данных.
+     */
+    public List<UserEntity> getAllUsers() {
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            return session.createQuery("FROM UserEntity", UserEntity.class).getResultList();
+        } catch (Exception e) {
+            log.error("Ошибка при получении всех пользователей", e);
+            return List.of();
+        }
+    }
+
+    /**
      * Обновляет данные существующего пользователя в базе данных.
      */
-    public void updateUser(User user) {
+    public void updateUser(UserEntity user) {
         Transaction transaction = null;
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
             transaction = session.beginTransaction();
@@ -62,7 +89,7 @@ public class UserDao {
         Transaction transaction = null;
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
             transaction = session.beginTransaction();
-            User user = session.get(User.class, id);
+            UserEntity user = session.get(UserEntity.class, id);
             if (user != null) {
                 session.delete(user);
                 transaction.commit();
@@ -81,13 +108,28 @@ public class UserDao {
         }
     }
 
+
+    public void deleteAllUsers() {
+        Transaction transaction = null;
+        try (Session session = HibernateUtil.getSessionFactory().openSession()) {
+            transaction = session.beginTransaction();
+            session.createQuery("DELETE FROM UserEntity").executeUpdate();
+            transaction.commit();
+            log.info("Все пользователи удалены");
+        } catch (Exception e) {
+            if (transaction != null && transaction.isActive()) {
+                transaction.rollback();
+            }
+            log.error("Ошибка при удалении всех пользователей", e);
+        }
+    }
+
     /**
      * Проверяет, существует ли пользователь с указанным адресом электронной почты.
      */
     public boolean isEmailExists(String email) {
         try (Session session = HibernateUtil.getSessionFactory().openSession()) {
-            String hql = "select count(u.id) from User u where u.email = :email";
-            Long count = session.createQuery(hql, Long.class)
+            Long count = session.createQuery("select count(u.id) from UserEntity u where u.email = :email", Long.class)
                     .setParameter("email", email)
                     .uniqueResult();
             return count != null && count > 0;

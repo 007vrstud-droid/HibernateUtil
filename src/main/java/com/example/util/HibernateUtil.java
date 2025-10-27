@@ -1,5 +1,6 @@
-package com.example;
+package com.example.util;
 
+import com.example.model.UserEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.SessionFactory;
 import org.hibernate.cfg.Configuration;
@@ -26,7 +27,7 @@ public class HibernateUtil {
             configuration.setProperties(properties);
 
             // Регистрируем аннотированные классы (Entity)
-            configuration.addAnnotatedClass(User.class);
+            configuration.addAnnotatedClass(UserEntity.class);
 
             // Строим фабрику сессий
             sessionFactory = configuration.buildSessionFactory();
