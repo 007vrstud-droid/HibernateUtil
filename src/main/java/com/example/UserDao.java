@@ -4,6 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Session;
 import org.hibernate.Transaction;
 
+import java.util.List;
+
 @Slf4j
 public class UserDao {
 
@@ -35,6 +37,13 @@ public class UserDao {
             log.error("Ошибка при получении пользователя по id {}", id, e);
             return null;
         }
+    }
+
+    /**
+     * Извлекает всех пользователей из базы данных.
+     */
+    public List<User> getAllUsers() {
+        return null;
     }
 
     /**
