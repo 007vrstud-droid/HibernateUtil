@@ -1,10 +1,12 @@
-import com.example.model.UserEntity;
-import com.example.repository.UserDaoImpl;
+package integra;
+
+import com.example.entity.UserEntity;
+import com.example.repository.UserDaoHibernateImpl;
+import org.hibernate.Session;
 import org.hibernate.SessionFactory;
+import org.hibernate.Transaction;
 import org.hibernate.cfg.Configuration;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -14,13 +16,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class UserDaoImplTest {
 
     @Container
@@ -30,11 +29,10 @@ class UserDaoImplTest {
             .withPassword("admin");
 
     private SessionFactory sessionFactory;
-    private UserDaoImpl userDao;
+    private UserDaoHibernateImpl userDao;
 
-    @BeforeEach
-    void setup() {
-        // Настройка Hibernate
+    @BeforeAll
+    void beforeAll() {
         Configuration configuration = new Configuration();
         configuration.setProperty("hibernate.connection.driver_class", "org.postgresql.Driver");
         configuration.setProperty("hibernate.connection.url", postgreSQLContainer.getJdbcUrl());
@@ -42,18 +40,25 @@ class UserDaoImplTest {
         configuration.setProperty("hibernate.connection.password", postgreSQLContainer.getPassword());
         configuration.setProperty("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
         configuration.setProperty("hibernate.hbm2ddl.auto", "update");
+        configuration.setProperty("hibernate.show_sql", "true");
+        configuration.setProperty("hibernate.format_sql", "true");
+        configuration.setProperty("hibernate.current_session_context_class", "thread");
         configuration.addAnnotatedClass(UserEntity.class);
 
         sessionFactory = configuration.buildSessionFactory();
-
-        // Создаем DAO
-        userDao = new UserDaoImpl(sessionFactory);
-
-        // Очистка базы
-        userDao.deleteAllUsers();
+        userDao = new UserDaoHibernateImpl(sessionFactory);
     }
 
-    @AfterEach
+    @BeforeEach
+    void cleanDatabase() {
+        try (Session session = sessionFactory.openSession()) {
+            Transaction tx = session.beginTransaction();
+            session.createQuery("delete from UserEntity").executeUpdate();
+            tx.commit();
+        }
+    }
+
+    @AfterAll
     void teardown() {
         if (sessionFactory != null) sessionFactory.close();
     }
@@ -61,11 +66,11 @@ class UserDaoImplTest {
     @Test
     void saveUser_andGetUserById_success() {
         UserEntity user = new UserEntity(null, "John", "john@example.com", 30, LocalDateTime.now());
-        userDao.saveUser(user);
+        userDao.save(user);
 
         assertNotNull(user.getId());
 
-        UserEntity fetched = userDao.getUser(user.getId());
+        UserEntity fetched = userDao.findById(user.getId());
 
         assertEquals(user.getId(), fetched.getId());
         assertEquals(user.getName(), fetched.getName());
@@ -78,44 +83,43 @@ class UserDaoImplTest {
     @Test
     void updateUser_success() {
         UserEntity user = new UserEntity(null, "Alice", "alice@example.com", 25, LocalDateTime.now());
-        userDao.saveUser(user);
+        userDao.save(user);
 
         user.setName("Alice Updated");
-        userDao.updateUser(user);
+        userDao.update(user);
 
-        UserEntity fetched = userDao.getUser(user.getId());
+        UserEntity fetched = userDao.findById(user.getId());
         assertEquals("Alice Updated", fetched.getName());
     }
 
     @Test
     void deleteUser_success() {
         UserEntity user = new UserEntity(null, "Bob", "bob@example.com", 40, LocalDateTime.now());
-        userDao.saveUser(user);
+        userDao.save(user);
 
-        userDao.deleteUser(user.getId());
+        userDao.deleteById(user.getId());
 
-        assertNull(userDao.getUser(user.getId()));
+        assertNull(userDao.findById(user.getId()));
     }
 
     @Test
     void isEmailExists_success() {
         UserEntity user = new UserEntity(null, "Charlie", "charlie@example.com", 35, LocalDateTime.now());
-        userDao.saveUser(user);
+        userDao.save(user);
 
-        assertTrue(userDao.isEmailExists("charlie@example.com"));
-        assertFalse(userDao.isEmailExists("nonexistent@example.com"));
+        assertTrue(userDao.existsByEmail("charlie@example.com"));
+        assertFalse(userDao.existsByEmail("nonexistent@example.com"));
     }
-
 
     @Test
     void getAllUsers_returnsAll() {
         String email1 = "user1_" + UUID.randomUUID() + "@example.com";
         String email2 = "user2_" + UUID.randomUUID() + "@example.com";
 
-        userDao.saveUser(new UserEntity(null, "User1", email1, 20, LocalDateTime.now()));
-        userDao.saveUser(new UserEntity(null, "User2", email2, 22, LocalDateTime.now()));
+        userDao.save(new UserEntity(null, "User1", email1, 20, LocalDateTime.now()));
+        userDao.save(new UserEntity(null, "User2", email2, 22, LocalDateTime.now()));
 
-        List<UserEntity> users = userDao.getAllUsers();
+        List<UserEntity> users = userDao.findAll();
         assertEquals(2, users.size());
     }
 }

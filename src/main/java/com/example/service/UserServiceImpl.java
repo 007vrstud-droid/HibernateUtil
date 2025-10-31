@@ -1,103 +1,78 @@
 package com.example.service;
 
-import com.example.model.UserEntity;
+import com.example.entity.UserEntity;
+import com.example.exception.NotFoundException;
 import com.example.repository.UserDao;
-import com.example.repository.UserDaoImpl;
+import com.example.validation.UserChecks;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
+/**
+ * Сервис для управления пользователями.
+ */
 @Slf4j
 public class UserServiceImpl implements UserService {
 
     private final UserDao userDao;
 
-    // ✅ Конструктор для тестов и DI
     public UserServiceImpl(UserDao userDao) {
         this.userDao = userDao;
     }
 
-    // ✅ Конструктор по умолчанию — если кто-то создаёт вручную
-    public UserServiceImpl() {
-        this.userDao = new UserDaoImpl();
-    }
-
     @Override
     public void createUser(UserEntity user) {
-        if (user == null) {
-            log.warn("Попытка создать null-пользователя");
-            return;
-        }
+        UserChecks.validateUserNotNull(user);
+        UserChecks.validateEmail(user.getEmail());
+        UserChecks.validateAge(user.getAge());
+        UserChecks.ensureEmailUniqueForCreate(user.getEmail(), userDao);
 
-        if (user.getEmail() == null || !user.getEmail().contains("@")) {
-            log.warn("Некорректный email: {}", user.getEmail());
-            return;
-        }
+        UserChecks.ensureCreatedAt(user);
 
-        if (userDao.isEmailExists(user.getEmail())) {
-            log.warn("Пользователь с email {} уже существует", user.getEmail());
-            return;
-        }
-
-        if (user.getCreatedAt() == null) {
-            user.setCreatedAt(LocalDateTime.now());
-        }
-
-        userDao.saveUser(user);
+        userDao.save(user);
         log.info("Пользователь успешно создан: {}", user);
     }
 
     @Override
-    public UserEntity getUserById(Long id) {
-        if (id == null || id <= 0) {
-            log.warn("Некорректный ID: {}", id);
-            return null;
-        }
-        return userDao.getUser(id);
-    }
-
-    @Override
-    public List<UserEntity> getAllUsers() {
-        return userDao.getAllUsers();
-    }
-
-    @Override
     public void updateUser(UserEntity user) {
-        if (user == null || user.getId() == null) {
-            log.warn("Невозможно обновить: пользователь или ID отсутствует");
-            return;
-        }
+        UserChecks.validateUserNotNull(user);
+        UserChecks.validateId(user.getId());
+        UserChecks.validateEmail(user.getEmail());
+        UserChecks.validateAge(user.getAge());
 
-        UserEntity existing = userDao.getUser(user.getId());
-        if (existing == null) {
-            log.warn("Пользователь с ID {} не найден", user.getId());
-            return;
-        }
+        userDao.findById(user.getId())
+                .orElseThrow(() -> new NotFoundException("Пользователь с ID " + user.getId() + " не найден"));
 
-        if (user.getEmail() != null && !user.getEmail().equals(existing.getEmail())
-                && userDao.isEmailExists(user.getEmail())) {
-            log.warn("Email {} уже используется другим пользователем", user.getEmail());
-            return;
-        }
-
-        userDao.updateUser(user);
+        UserChecks.ensureEmailUniqueForUpdate(user, userDao);
+        userDao.update(user);
         log.info("Пользователь обновлён: {}", user);
     }
 
     @Override
-    public void deleteUser(Long id) {
-        if (id == null || id <= 0) {
-            log.warn("Некорректный ID: {}", id);
-            return;
-        }
+    public Optional<UserEntity> getUserById(Long id) {
+        UserChecks.validateId(id);
+        return userDao.findById(id);
+    }
 
-        userDao.deleteUser(id);
-        log.info("Пользователь с ID {} удалён (если существовал)", id);
+    @Override
+    public List<UserEntity> getAllUsers() {
+        return userDao.findAll();
+    }
+
+    @Override
+    public void deleteUser(Long id) {
+        UserChecks.validateId(id);
+        userDao.findById(id)
+                .orElseThrow(() -> new NotFoundException("Пользователь с ID " + id + " не найден"));
+
+        userDao.deleteById(id);
+        log.info("Пользователь с ID {} удалён", id);
     }
 
     @Override
     public boolean isEmailExists(String email) {
-        return userDao.isEmailExists(email);
+        UserChecks.validateEmail(email);
+        return userDao.findByEmail(email).isPresent();
     }
 }
