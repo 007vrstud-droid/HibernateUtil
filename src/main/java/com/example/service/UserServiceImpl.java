@@ -5,83 +5,84 @@ import com.example.dto.UserUpdateRequest;
 import com.example.dto.UserResponse;
 import com.example.entity.UserEntity;
 import com.example.exception.NotFoundException;
-import com.example.repository.UserDao;
+import com.example.repository.UserRepository;
 import com.example.util.UserChecks;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Service
+@RequiredArgsConstructor
 @Slf4j
 public class UserServiceImpl implements UserService {
 
-    private final UserDao userDao;
-
-    public UserServiceImpl(UserDao userDao) {
-        this.userDao = userDao;
-    }
+    private final UserRepository userRepository;
+    private final UserChecks userChecks;
 
     @Override
     public void createUser(UserCreateRequest request) {
-        UserChecks.validateUserNotNull(request);
-        UserChecks.validateEmail(request.getEmail());
-        UserChecks.validateAge(request.getAge());
-        UserChecks.ensureEmailUniqueForCreate(request.getEmail(), userDao);
+        userChecks.validateUserNotNull(request);
+        userChecks.validateEmail(request.getEmail());
+        userChecks.validateAge(request.getAge());
+        userChecks.ensureEmailUniqueForCreate(request.getEmail());
 
         UserEntity user = new UserEntity();
         user.setName(request.getName());
         user.setEmail(request.getEmail());
         user.setAge(request.getAge());
 
-        userDao.save(user);
+        userRepository.save(user);
         log.info("Пользователь успешно создан: {}", user);
     }
 
     @Override
     public void updateUser(UserUpdateRequest request) {
-        UserChecks.validateUserNotNull(request);
-        UserChecks.validateId(request.getId());
-        UserChecks.validateEmail(request.getEmail());
-        UserChecks.validateAge(request.getAge());
+        userChecks.validateUserNotNull(request);
+        userChecks.validateId(request.getId());
+        userChecks.validateEmail(request.getEmail());
+        userChecks.validateAge(request.getAge());
 
-        UserEntity existing = userDao.findById(request.getId())
+        UserEntity existing = userRepository.findById(request.getId())
                 .orElseThrow(() -> new NotFoundException("Пользователь с ID " + request.getId() + " не найден"));
 
         // Проверка уникальности email
         UserEntity temp = new UserEntity();
         temp.setId(request.getId());
         temp.setEmail(request.getEmail());
-        UserChecks.ensureEmailUniqueForUpdate(temp, userDao);
+        userChecks.ensureEmailUniqueForUpdate(temp);
 
         // Обновление данных
         existing.setName(request.getName());
         existing.setEmail(request.getEmail());
         existing.setAge(request.getAge());
 
-        userDao.update(existing);
+        userRepository.save(existing);
         log.info("Пользователь обновлён: {}", existing);
     }
 
     @Override
     public Optional<UserResponse> getUserById(Long id) {
-        UserChecks.validateId(id);
-        return userDao.findById(id).map(this::mapToResponse);
+        userChecks.validateId(id);
+        return userRepository.findById(id).map(this::mapToResponse);
     }
 
     @Override
     public List<UserResponse> getAllUsers() {
-        return userDao.findAll().stream()
+        return userRepository.findAll().stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 
     @Override
     public void deleteUser(Long id) {
-        UserChecks.validateId(id);
-        userDao.findById(id)
+        userChecks.validateId(id);
+        userRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Пользователь с ID " + id + " не найден"));
-        userDao.deleteById(id);
+        userRepository.deleteById(id);
         log.info("Пользователь с ID {} удалён", id);
     }
 
@@ -91,7 +92,7 @@ public class UserServiceImpl implements UserService {
             return false;
         }
 
-        Optional<UserEntity> userOpt = userDao.findByEmail(email);
+        Optional<UserEntity> userOpt = userRepository.findByEmail(email);
         return userOpt.isPresent();
     }
 

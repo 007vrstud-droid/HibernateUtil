@@ -13,6 +13,4 @@ public class UserResponse {
     private String email;
     private Integer age;
     private LocalDateTime createdAt;
-
-    // геттеры/сеттеры
 }

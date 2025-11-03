@@ -1,12 +1,14 @@
 package com.example;
 
-import com.example.console.UserConsoleApp;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
  * Точка входа в приложение.
  */
+@SpringBootApplication
 public class Main {
     public static void main(String[] args) {
-        new UserConsoleApp().run();
+        SpringApplication.run(Main.class, args);
     }
 }
