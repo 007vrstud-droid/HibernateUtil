@@ -1,0 +1,167 @@
+openapi: 3.0.3
+info:
+  title: User API
+  version: 1.0.0
+paths:
+  /users:
+    get:
+      summary: Получить всех пользователей
+      description: Возвращает список всех пользователей.
+      tags:
+        - user
+      responses:
+        '200':
+          description: Список пользователей успешно получен.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserResponse2'
+    post:
+      summary: Создать нового пользователя
+      description: Создает нового пользователя с переданными данными.
+      tags:
+        - user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest2'
+      responses:
+        '201':
+          description: Пользователь успешно создан.
+        '400':
+          description: Неверные данные для создания пользователя.
+
+  /users/{id}:
+    get:
+      summary: Получить информацию о пользователе по ID
+      description: Возвращает информацию о пользователе с указанным ID.
+      tags:
+        - user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Идентификатор пользователя.
+      responses:
+        '200':
+          description: Пользователь найден.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse2'
+        '404':
+          description: Пользователь не найден.
+    put:
+      summary: Обновить информацию о пользователе
+      description: Обновляет информацию о пользователе с указанным ID.
+      tags:
+        - user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Идентификатор пользователя.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest2'
+      responses:
+        '200':
+          description: Пользователь успешно обновлен.
+        '400':
+          description: Неверные данные для обновления пользователя.
+        '404':
+          description: Пользователь не найден.
+    delete:
+      summary: Удалить пользователя
+      description: Удаляет пользователя по указанному ID.
+      tags:
+        - user
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Идентификатор пользователя.
+      responses:
+        '204':
+          description: Пользователь успешно удален.
+        '404':
+          description: Пользователь не найден.
+
+components:
+  schemas:
+    UserCreateRequest2:
+      type: object
+      required:
+        - name
+        - email
+        - age
+      properties:
+        name:
+          type: string
+          description: Имя пользователя.
+          minLength: 2
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          description: Адрес электронной почты пользователя.
+        age:
+          type: integer
+          description: Возраст пользователя.
+          minimum: 1
+          maximum: 150
+
+    UserUpdateRequest2:
+      type: object
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+          description: Имя пользователя.
+          minLength: 2
+          maxLength: 50
+        email:
+          type: string
+          format: email
+          description: Адрес электронной почты пользователя.
+        age:
+          type: integer
+          description: Возраст пользователя.
+          minimum: 1
+          maximum: 150
+
+    UserResponse2:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Уникальный идентификатор пользователя.
+        name:
+          type: string
+          description: Имя пользователя.
+        email:
+          type: string
+          format: email
+          description: Адрес электронной почты пользователя.
+        age:
+          type: integer
+          description: Возраст пользователя.
+        createdAt:
+          type: string
+          format: date-time
+          description: Дата и время создания пользователя.
