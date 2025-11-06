@@ -20,7 +20,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
@@ -45,7 +44,7 @@ class UserServiceImplTest {
         // Заглушки для валидации
         doNothing().when(userChecks).validateUserNotNull(any());
         doNothing().when(userChecks).validateEmail(anyString());
-        doNothing().when(userChecks).validateAge(anyInt());
+        doNothing().when(userChecks).validateAge(any(Integer.class));
         doNothing().when(userChecks).validateId(anyLong());
         doNothing().when(userChecks).ensureEmailUniqueForUpdate(any());
 
@@ -81,19 +80,22 @@ class UserServiceImplTest {
 
     @Test
     void updateUser_shouldUpdateExistingUser() {
+        Long userId = 1L;
+
         UserUpdateRequest request = new UserUpdateRequest();
-        request.setId(1L);
+        request.setId(userId); // DTO поле Integer
         request.setName("Bob");
         request.setEmail("bob@example.com");
         request.setAge(30);
 
         UserEntity existing = new UserEntity();
-        existing.setId(1L);
+        existing.setId(userId);
         existing.setName("OldName");
         existing.setEmail("old@example.com");
         existing.setAge(20);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(existing));
+        // Преобразуем Integer в Long перед вызовом репозитория
+        when(userRepository.findById(Long.valueOf(request.getId()))).thenReturn(Optional.of(existing));
 
         userService.updateUser(request);
 
@@ -108,13 +110,15 @@ class UserServiceImplTest {
 
     @Test
     void updateUser_nonExistingUser_shouldThrow() {
+        Long userId = 99L;
+
         UserUpdateRequest request = new UserUpdateRequest();
-        request.setId(99L);
+        request.setId(userId);
         request.setName("NonExist");
         request.setEmail("no@example.com");
         request.setAge(50);
 
-        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+        when(userRepository.findById(Long.valueOf(request.getId()))).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.updateUser(request))
                 .isInstanceOf(NotFoundException.class)
@@ -123,15 +127,17 @@ class UserServiceImplTest {
 
     @Test
     void getUserById_existingUser_shouldReturnResponse() {
+        Long userId = 1L;
+
         UserEntity entity = new UserEntity();
-        entity.setId(1L);
+        entity.setId(userId);
         entity.setName("Test");
         entity.setEmail("test@example.com");
         entity.setAge(40);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(entity));
 
-        Optional<UserResponse> response = userService.getUserById(1L);
+        Optional<UserResponse> response = userService.getUserById(userId);
 
         assertThat(response).isPresent();
         assertThat(response.get().getName()).isEqualTo("Test");
@@ -141,9 +147,11 @@ class UserServiceImplTest {
 
     @Test
     void getUserById_nonExistingUser_shouldReturnEmpty() {
-        when(userRepository.findById(2L)).thenReturn(Optional.empty());
+        Long userId = 2L;
 
-        Optional<UserResponse> response = userService.getUserById(2L);
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        Optional<UserResponse> response = userService.getUserById(userId);
 
         assertThat(response).isEmpty();
     }
@@ -173,21 +181,25 @@ class UserServiceImplTest {
 
     @Test
     void deleteUser_existingUser_shouldCallDaoDelete() {
+        Long userId = 1L;
+
         UserEntity entity = new UserEntity();
-        entity.setId(1L);
+        entity.setId(userId);
 
-        when(userRepository.findById(1L)).thenReturn(Optional.of(entity));
+        when(userRepository.findById(userId)).thenReturn(Optional.of(entity));
 
-        userService.deleteUser(1L);
+        userService.deleteUser(userId);
 
-        verify(userRepository).deleteById(1L);
+        verify(userRepository).deleteById(userId);
     }
 
     @Test
     void deleteUser_nonExistingUser_shouldThrow() {
-        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+        Long userId = 99L;
 
-        assertThatThrownBy(() -> userService.deleteUser(99L))
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> userService.deleteUser(userId))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessageContaining("Пользователь с ID 99 не найден");
     }
