@@ -3,33 +3,34 @@ package com.example.util;
 import com.example.entity.UserEntity;
 import com.example.exception.DuplicateResourceException;
 import com.example.exception.InvalidDataException;
-import com.example.repository.UserDao;
+import com.example.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
 import java.util.regex.Pattern;
 
 /**
  * Общие проверки и предусловия для пользователя.
  * Объединяет валидацию и вспомогательные предусловия.
  */
+@Component
+@RequiredArgsConstructor
 public final class UserChecks {
+    private final UserRepository userRepository;
 
-    private UserChecks() {
-    }
-
-    public static void validateUserNotNull(Object user) {
+    public void validateUserNotNull(Object user) {
         if (user == null) {
             throw new InvalidDataException("Пользователь не может быть null");
         }
     }
 
-    public static void validateId(Long id) {
+    public void validateId(Long id) {
         if (id == null || id <= 0) {
             throw new InvalidDataException("Некорректный ID: " + id);
         }
     }
 
-    public static void validateEmail(String email) {
+    public void validateEmail(String email) {
         if (email == null) {
             throw new InvalidDataException("Email не может быть null");
         }
@@ -42,7 +43,7 @@ public final class UserChecks {
         }
     }
 
-    public static void validateAge(Integer age) {
+    public void validateAge(Integer age) {
         if (age != null && (age < 0 || age > 150)) {
             throw new InvalidDataException("Некорректный возраст: " + age);
         }
@@ -51,8 +52,8 @@ public final class UserChecks {
     /**
      * Проверка при создании нового пользователя
      */
-    public static void ensureEmailUniqueForCreate(String email, UserDao userDao) {
-        userDao.findByEmail(email)
+    public void ensureEmailUniqueForCreate(String email) {
+        userRepository.findByEmail(email)
                 .ifPresent(u -> {
                     throw new DuplicateResourceException(
                             "Пользователь с email " + email + " уже существует");
@@ -62,8 +63,8 @@ public final class UserChecks {
     /**
      * Проверка при обновлении существующего пользователя
      */
-    public static void ensureEmailUniqueForUpdate(UserEntity user, UserDao userDao) {
-        userDao.findByEmail(user.getEmail())
+    public void ensureEmailUniqueForUpdate(UserEntity user) {
+        userRepository.findByEmail(user.getEmail())
                 .ifPresent(existing -> {
                     if (!existing.getId().equals(user.getId())) {
                         throw new DuplicateResourceException(

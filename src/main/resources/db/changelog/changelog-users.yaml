@@ -1,0 +1,14 @@
+databaseChangeLog:
+  - changeSet:
+      id: create-users
+      author: user
+      changes:
+        - sql:
+            sql: |
+              CREATE TABLE users (
+                id BIGSERIAL PRIMARY KEY,
+                name VARCHAR(50) NOT NULL,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                age INTEGER NOT NULL,
+                created_at TIMESTAMP(0) DEFAULT CURRENT_TIMESTAMP NOT NULL
+              );
