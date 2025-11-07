@@ -11,7 +11,7 @@ import com.example.service.UserServiceImpl;
 import com.example.util.UserChecks;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.List;
@@ -19,13 +19,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 class UserServiceImplTest {
 
@@ -36,56 +29,51 @@ class UserServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        userRepository = mock(UserRepository.class);
-        userChecks = mock(UserChecks.class);
-        userMapper = mock(UserMapper.class);
+        userRepository = Mockito.mock(UserRepository.class);
+        userChecks = Mockito.mock(UserChecks.class);
+        userMapper = Mockito.mock(UserMapper.class);
         userService = new UserServiceImpl(userRepository, userChecks, userMapper);
 
-        // Заглушки для валидации
-        doNothing().when(userChecks).validateUserNotNull(any());
-        doNothing().when(userChecks).validateEmail(anyString());
-        doNothing().when(userChecks).validateAge(any(Integer.class));
-        doNothing().when(userChecks).validateId(anyLong());
-        doNothing().when(userChecks).ensureEmailUniqueForUpdate(any());
-
-        // Заглушка для маппера
-        when(userMapper.toResponse(any(UserEntity.class))).thenAnswer(inv -> {
-            UserEntity e = inv.getArgument(0);
-            UserResponse r = new UserResponse();
-            r.setId(e.getId());
-            r.setName(e.getName());
-            r.setEmail(e.getEmail());
-            r.setAge(e.getAge());
-            return r;
-        });
+        Mockito.doNothing().when(userChecks).validateUserNotNull(Mockito.any());
+        Mockito.doNothing().when(userChecks).validateEmail(Mockito.anyString());
+        Mockito.doNothing().when(userChecks).validateAge(Mockito.any());
+        Mockito.doNothing().when(userChecks).validateId(Mockito.anyLong());
+        Mockito.doNothing().when(userChecks).ensureEmailUniqueForCreate(Mockito.anyString());
+        Mockito.doNothing().when(userChecks).ensureEmailUniqueForUpdate(Mockito.any(UserEntity.class));
     }
 
     @Test
-    void createUser_shouldSaveUser() {
+    void createUser_shouldValidateAndSaveUser() {
         UserCreateRequest request = new UserCreateRequest();
-        request.setName("Alice");
-        request.setEmail("alice@example.com");
+        request.setName("User1");
+        request.setEmail("user1@example.com");
         request.setAge(25);
+
+        UserEntity mapped = new UserEntity();
+        mapped.setName("User1");
+        mapped.setEmail("user1@example.com");
+        mapped.setAge(25);
+
+        Mockito.when(userMapper.fromCreateRequest(request)).thenReturn(mapped);
 
         userService.createUser(request);
 
-        ArgumentCaptor<UserEntity> captor = ArgumentCaptor.forClass(UserEntity.class);
-        verify(userRepository).save(captor.capture());
-        UserEntity saved = captor.getValue();
+        Mockito.verify(userChecks).validateUserNotNull(request);
+        Mockito.verify(userChecks).validateEmail("user1@example.com");
+        Mockito.verify(userChecks).validateAge(25);
+        Mockito.verify(userChecks).ensureEmailUniqueForCreate("user1@example.com");
 
-        assertThat(saved.getName()).isEqualTo("Alice");
-        assertThat(saved.getEmail()).isEqualTo("alice@example.com");
-        assertThat(saved.getAge()).isEqualTo(25);
+        Mockito.verify(userMapper).fromCreateRequest(request);
+        Mockito.verify(userRepository).save(mapped);
     }
 
     @Test
     void updateUser_shouldUpdateExistingUser() {
         Long userId = 1L;
-
         UserUpdateRequest request = new UserUpdateRequest();
-        request.setId(userId); // DTO поле Integer
-        request.setName("Bob");
-        request.setEmail("bob@example.com");
+        request.setId(userId);
+        request.setName("User2");
+        request.setEmail("user2@example.com");
         request.setAge(30);
 
         UserEntity existing = new UserEntity();
@@ -94,31 +82,29 @@ class UserServiceImplTest {
         existing.setEmail("old@example.com");
         existing.setAge(20);
 
-        // Преобразуем Integer в Long перед вызовом репозитория
-        when(userRepository.findById(Long.valueOf(request.getId()))).thenReturn(Optional.of(existing));
+        Mockito.when(userRepository.findById(userId)).thenReturn(Optional.of(existing));
 
         userService.updateUser(request);
 
-        ArgumentCaptor<UserEntity> captor = ArgumentCaptor.forClass(UserEntity.class);
-        verify(userRepository).save(captor.capture());
-        UserEntity updated = captor.getValue();
+        Mockito.verify(userChecks).validateId(userId);
+        Mockito.verify(userChecks).validateUserNotNull(request);
+        Mockito.verify(userChecks).validateEmail("user2@example.com");
+        Mockito.verify(userChecks).validateAge(30);
 
-        assertThat(updated.getName()).isEqualTo("Bob");
-        assertThat(updated.getEmail()).isEqualTo("bob@example.com");
-        assertThat(updated.getAge()).isEqualTo(30);
+        Mockito.verify(userMapper).updateEntityFromDto(request, existing);
+        Mockito.verify(userChecks).ensureEmailUniqueForUpdate(existing);
+        Mockito.verify(userRepository).save(existing);
     }
 
     @Test
     void updateUser_nonExistingUser_shouldThrow() {
         Long userId = 99L;
-
         UserUpdateRequest request = new UserUpdateRequest();
         request.setId(userId);
-        request.setName("NonExist");
-        request.setEmail("no@example.com");
-        request.setAge(50);
+        request.setName("Ghost");
+        request.setEmail("ghost@example.com");
 
-        when(userRepository.findById(Long.valueOf(request.getId()))).thenReturn(Optional.empty());
+        Mockito.when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.updateUser(request))
                 .isInstanceOf(NotFoundException.class)
@@ -128,99 +114,109 @@ class UserServiceImplTest {
     @Test
     void getUserById_existingUser_shouldReturnResponse() {
         Long userId = 1L;
-
         UserEntity entity = new UserEntity();
         entity.setId(userId);
-        entity.setName("Test");
-        entity.setEmail("test@example.com");
-        entity.setAge(40);
+        entity.setName("User1");
+        entity.setEmail("user1@example.com");
+        entity.setAge(25);
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(entity));
+        UserResponse response = new UserResponse();
+        response.setId(userId);
+        response.setName("User1");
+        response.setEmail("user1@example.com");
+        response.setAge(25);
 
-        Optional<UserResponse> response = userService.getUserById(userId);
+        Mockito.when(userRepository.findById(userId)).thenReturn(Optional.of(entity));
+        Mockito.when(userMapper.toResponse(entity)).thenReturn(response);
 
-        assertThat(response).isPresent();
-        assertThat(response.get().getName()).isEqualTo("Test");
-        assertThat(response.get().getEmail()).isEqualTo("test@example.com");
-        assertThat(response.get().getAge()).isEqualTo(40);
+        Optional<UserResponse> result = userService.getUserById(userId);
+
+        assertThat(result).isPresent();
+        assertThat(result.get().getName()).isEqualTo("User1");
+        Mockito.verify(userMapper).toResponse(entity);
     }
 
     @Test
     void getUserById_nonExistingUser_shouldReturnEmpty() {
         Long userId = 2L;
+        Mockito.when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        Optional<UserResponse> result = userService.getUserById(userId);
 
-        Optional<UserResponse> response = userService.getUserById(userId);
-
-        assertThat(response).isEmpty();
+        assertThat(result).isEmpty();
+        Mockito.verify(userRepository).findById(userId);
     }
 
     @Test
-    void getAllUsers_shouldReturnAllUsers() {
-        UserEntity u1 = new UserEntity();
-        u1.setId(1L);
-        u1.setName("A");
-        u1.setEmail("a@example.com");
-        u1.setAge(20);
+    void getAllUsers_shouldReturnMappedList() {
+        UserEntity e1 = new UserEntity();
+        e1.setId(1L);
+        e1.setName("User1");
 
-        UserEntity u2 = new UserEntity();
-        u2.setId(2L);
-        u2.setName("B");
-        u2.setEmail("b@example.com");
-        u2.setAge(30);
+        UserEntity e2 = new UserEntity();
+        e2.setId(2L);
+        e2.setName("User2");
 
-        when(userRepository.findAll()).thenReturn(Arrays.asList(u1, u2));
+        UserResponse r1 = new UserResponse();
+        r1.setId(1L);
+        r1.setName("User1");
 
-        List<UserResponse> users = userService.getAllUsers();
+        UserResponse r2 = new UserResponse();
+        r2.setId(2L);
+        r2.setName("User2");
 
-        assertThat(users).hasSize(2);
-        assertThat(users.get(0).getName()).isEqualTo("A");
-        assertThat(users.get(1).getName()).isEqualTo("B");
+        Mockito.when(userRepository.findAll()).thenReturn(Arrays.asList(e1, e2));
+        Mockito.when(userMapper.toResponse(e1)).thenReturn(r1);
+        Mockito.when(userMapper.toResponse(e2)).thenReturn(r2);
+
+        List<UserResponse> result = userService.getAllUsers();
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getName()).isEqualTo("User1");
+        assertThat(result.get(1).getName()).isEqualTo("User2");
     }
 
     @Test
-    void deleteUser_existingUser_shouldCallDaoDelete() {
+    void deleteUser_existingUser_shouldDeleteById() {
         Long userId = 1L;
-
         UserEntity entity = new UserEntity();
         entity.setId(userId);
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(entity));
+        Mockito.when(userRepository.findById(userId)).thenReturn(Optional.of(entity));
 
         userService.deleteUser(userId);
 
-        verify(userRepository).deleteById(userId);
+        Mockito.verify(userRepository).deleteById(userId);
     }
 
     @Test
     void deleteUser_nonExistingUser_shouldThrow() {
-        Long userId = 99L;
-
-        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        Long userId = 77L;
+        Mockito.when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> userService.deleteUser(userId))
                 .isInstanceOf(NotFoundException.class)
-                .hasMessageContaining("Пользователь с ID 99 не найден");
+                .hasMessageContaining("Пользователь с ID 77 не найден");
     }
 
     @Test
     void isEmailExists_shouldReturnTrueIfFound() {
+        String email = "user1@example.com";
         UserEntity entity = new UserEntity();
-        entity.setEmail("exist@example.com");
+        entity.setEmail(email);
 
-        when(userRepository.findByEmail("exist@example.com")).thenReturn(Optional.of(entity));
+        Mockito.when(userRepository.findByEmail(email)).thenReturn(Optional.of(entity));
 
-        boolean result = userService.isEmailExists("exist@example.com");
+        boolean result = userService.isEmailExists(email);
 
         assertThat(result).isTrue();
     }
 
     @Test
     void isEmailExists_shouldReturnFalseIfNotFound() {
-        when(userRepository.findByEmail("notfound@example.com")).thenReturn(Optional.empty());
+        Mockito.when(userRepository.findByEmail("no@example.com")).thenReturn(Optional.empty());
 
-        boolean result = userService.isEmailExists("notfound@example.com");
+        boolean result = userService.isEmailExists("no@example.com");
 
         assertThat(result).isFalse();
     }

@@ -25,7 +25,6 @@ public class UserServiceImpl implements UserService {
     private final UserChecks userChecks;
     private final UserMapper userMapper;
 
-
     @Override
     public void createUser(UserCreateRequest request) {
         log.debug("Попытка создания пользователя с email: {}", request.getEmail());
@@ -33,19 +32,18 @@ public class UserServiceImpl implements UserService {
         userChecks.validateUserNotNull(request);
         userChecks.validateEmail(request.getEmail());
         userChecks.validateAge(request.getAge());
+        userChecks.ensureEmailUniqueForCreate(request.getEmail());
 
-        UserEntity user = new UserEntity();
-        user.setName(request.getName());
-        user.setEmail(request.getEmail());
-        user.setAge(request.getAge());
-
+        UserEntity user = userMapper.fromCreateRequest(request);
         userRepository.save(user);
+
         log.info("Пользователь успешно создан: {}", user);
     }
 
     @Override
     public void updateUser(UserUpdateRequest request) {
         log.debug("Попытка обновления пользователя с id: {}", request.getId());
+
         userChecks.validateId(request.getId());
         userChecks.validateUserNotNull(request);
         userChecks.validateEmail(request.getEmail());
@@ -54,16 +52,8 @@ public class UserServiceImpl implements UserService {
         UserEntity existing = userRepository.findById(request.getId())
                 .orElseThrow(() -> new NotFoundException("Пользователь с ID " + request.getId() + " не найден"));
 
-        // Проверка уникальности email
-        UserEntity temp = new UserEntity();
-        temp.setId(request.getId());
-        temp.setEmail(request.getEmail());
-        userChecks.ensureEmailUniqueForUpdate(temp);
-
-        // Обновление данных
-        existing.setName(request.getName());
-        existing.setEmail(request.getEmail());
-        existing.setAge(request.getAge());
+        userMapper.updateEntityFromDto(request, existing);
+        userChecks.ensureEmailUniqueForUpdate(existing);
 
         userRepository.save(existing);
         log.info("Пользователь обновлён: {}", existing);
@@ -99,7 +89,6 @@ public class UserServiceImpl implements UserService {
         if (email == null || email.isBlank()) {
             return false;
         }
-
         Optional<UserEntity> userOpt = userRepository.findByEmail(email);
         return userOpt.isPresent();
     }

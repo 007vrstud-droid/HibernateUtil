@@ -6,6 +6,7 @@ import com.example.dto.UserUpdateRequest;
 import com.example.service.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,22 +34,30 @@ public class UserControllerTest {
     @MockBean
     private UserService userService;
 
-    private UserResponse userResponse;
+    private UserResponse user1;
+    private UserResponse user2;
 
     @BeforeEach
     void setUp() {
-        userResponse = new UserResponse();
-        userResponse.setId(1L);
-        userResponse.setName("Alice");
-        userResponse.setEmail("alice@example.com");
-        userResponse.setAge(25);
+        user1 = new UserResponse();
+        user1.setId(1L);
+        user1.setName("User1");
+        user1.setEmail("user1@example.com");
+        user1.setAge(25);
+
+        user2 = new UserResponse();
+        user2.setId(2L);
+        user2.setName("User2");
+        user2.setEmail("user2@example.com");
+        user2.setAge(30);
     }
 
     @Test
+    @DisplayName("Создание пользователя")
     void createUser_shouldReturnOk() throws Exception {
         UserCreateRequest request = new UserCreateRequest();
-        request.setName("Alice");
-        request.setEmail("alice@example.com");
+        request.setName("User1");
+        request.setEmail("user1@example.com");
         request.setAge(25);
 
         mockMvc.perform(post("/api/users")
@@ -60,18 +69,20 @@ public class UserControllerTest {
     }
 
     @Test
+    @DisplayName("Получение существующего пользователя")
     void getUser_existingUser_shouldReturnUser() throws Exception {
-        Mockito.when(userService.getUserById(1L)).thenReturn(Optional.of(userResponse));
+        Mockito.when(userService.getUserById(1L)).thenReturn(Optional.of(user1));
 
         mockMvc.perform(get("/api/users/1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(1))
-                .andExpect(jsonPath("$.name").value("Alice"))
-                .andExpect(jsonPath("$.email").value("alice@example.com"))
+                .andExpect(jsonPath("$.name").value("User1"))
+                .andExpect(jsonPath("$.email").value("user1@example.com"))
                 .andExpect(jsonPath("$.age").value(25));
     }
 
     @Test
+    @DisplayName("Получение несуществующего пользователя")
     void getUser_nonExistingUser_shouldReturnNotFound() throws Exception {
         Mockito.when(userService.getUserById(99L)).thenReturn(Optional.empty());
 
@@ -80,10 +91,11 @@ public class UserControllerTest {
     }
 
     @Test
+    @DisplayName("Обновление пользователя")
     void updateUser_shouldReturnOk() throws Exception {
         UserUpdateRequest request = new UserUpdateRequest();
-        request.setName("Bob");
-        request.setEmail("bob@example.com");
+        request.setName("User2");
+        request.setEmail("user2@example.com");
         request.setAge(30);
 
         mockMvc.perform(put("/api/users/1")
@@ -95,6 +107,7 @@ public class UserControllerTest {
     }
 
     @Test
+    @DisplayName("Удаление пользователя")
     void deleteUser_shouldReturnNoContent() throws Exception {
         mockMvc.perform(delete("/api/users/1"))
                 .andExpect(status().isNoContent());
@@ -103,19 +116,14 @@ public class UserControllerTest {
     }
 
     @Test
+    @DisplayName("Получение всех пользователей")
     void getAllUsers_shouldReturnList() throws Exception {
-        UserResponse user2 = new UserResponse();
-        user2.setId(2L);
-        user2.setName("Bob");
-        user2.setEmail("bob@example.com");
-        user2.setAge(30);
-
-        Mockito.when(userService.getAllUsers()).thenReturn(Arrays.asList(userResponse, user2));
+        Mockito.when(userService.getAllUsers()).thenReturn(Arrays.asList(user1, user2));
 
         mockMvc.perform(get("/api/users"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].name").value("Alice"))
-                .andExpect(jsonPath("$[1].name").value("Bob"));
+                .andExpect(jsonPath("$[0].name").value("User1"))
+                .andExpect(jsonPath("$[1].name").value("User2"));
     }
 }

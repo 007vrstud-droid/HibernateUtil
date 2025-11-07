@@ -7,7 +7,6 @@ import com.example.dto.UserUpdateRequest;
 import com.example.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -32,7 +31,6 @@ public class UserController implements UserApi {
         return ResponseEntity.noContent().build();
     }
 
-
     @Override
     public ResponseEntity<List<UserResponse>> getAllUsers() {
         List<UserResponse> users = userService.getAllUsers();
@@ -52,5 +50,4 @@ public class UserController implements UserApi {
         userService.updateUser(userUpdateRequest);
         return ResponseEntity.ok().build();
     }
-
 }

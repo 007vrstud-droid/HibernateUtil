@@ -5,10 +5,14 @@ import com.example.dto.UserCreateRequest;
 import com.example.dto.UserResponse;
 import com.example.dto.UserUpdateRequest;
 import com.example.entity.UserEntity;
+import com.example.exception.DuplicateResourceException;
 import com.example.repository.UserRepository;
 import com.example.service.UserService;
-import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -17,13 +21,11 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.util.List;
-import java.util.Optional;
+import static org.assertj.core.api.Assertions.*;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-@SpringBootTest(classes = Main.class) // <-- указываем основной класс
+@SpringBootTest(classes = Main.class)
 @Testcontainers
+@TestMethodOrder(MethodOrderer.DisplayName.class)
 class UserServiceIntegrationTest {
 
     @Autowired
@@ -33,86 +35,131 @@ class UserServiceIntegrationTest {
     private UserRepository userRepository;
 
     @Container
-    static PostgreSQLContainer<?> postgresContainer = new PostgreSQLContainer<>("postgres:15")
+    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
             .withDatabaseName("testdb")
             .withUsername("user")
             .withPassword("password");
 
     @DynamicPropertySource
-    static void registerPgProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgresContainer::getJdbcUrl);
-        registry.add("spring.datasource.username", postgresContainer::getUsername);
-        registry.add("spring.datasource.password", postgresContainer::getPassword);
+    static void registerPgProps(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
     }
 
-    @AfterEach
-    void cleanUp() {
+    @BeforeEach
+    void cleanBefore() {
         userRepository.deleteAll();
     }
 
+    private UserEntity createEntity(String name, String email, int age) {
+        UserEntity e = new UserEntity();
+        e.setName(name);
+        e.setEmail(email);
+        e.setAge(age);
+        return userRepository.save(e);
+    }
+
+    private UserCreateRequest createRequest(String name, String email, int age) {
+        UserCreateRequest r = new UserCreateRequest();
+        r.setName(name);
+        r.setEmail(email);
+        r.setAge(age);
+        return r;
+    }
+
+    private UserUpdateRequest updateRequest(Long id, String name, String email, int age) {
+        UserUpdateRequest r = new UserUpdateRequest();
+        r.setId(id);
+        r.setName(name);
+        r.setEmail(email);
+        r.setAge(age);
+        return r;
+    }
+
     @Test
-    void testCreateAndGetUser() {
-        UserCreateRequest request = new UserCreateRequest();
-        request.setName("John Doe");
-        request.setEmail("john@example.com");
-        request.setAge(30);
+    @DisplayName("Создание пользователя")
+    void createUser_shouldSaveUserToDatabase() {
+        var request = createRequest("user1", "user1@example.com", 30);
 
         userService.createUser(request);
 
-        List<UserResponse> users = userService.getAllUsers();
-        assertThat(users).hasSize(1);
-        UserResponse user = users.get(0);
-        assertThat(user.getName()).isEqualTo("John Doe");
-        assertThat(user.getEmail()).isEqualTo("john@example.com");
-        assertThat(user.getAge()).isEqualTo(30);
+        var all = userRepository.findAll();
+        assertThat(all).hasSize(1);
+
+        var saved = all.get(0);
+        assertThat(saved)
+                .extracting(UserEntity::getName, UserEntity::getEmail, UserEntity::getAge)
+                .containsExactly("user1", "user1@example.com", 30);
     }
 
     @Test
-    void testUpdateUser() {
-        UserEntity entity = new UserEntity();
-        entity.setName("Alice");
-        entity.setEmail("alice@example.com");
-        entity.setAge(25);
-        entity = userRepository.save(entity);
+    @DisplayName("Получение списка пользователей")
+    void getAllUsers_shouldReturnExistingUsers() {
+        createEntity("user1", "user1@example.com", 25);
+        createEntity("user2", "user2@example.com", 40);
 
-        UserUpdateRequest updateRequest = new UserUpdateRequest();
-        updateRequest.setId(entity.getId());
-        updateRequest.setName("Alice Updated");
-        updateRequest.setEmail("alice.updated@example.com");
-        updateRequest.setAge(26);
+        var users = userService.getAllUsers();
 
-        userService.updateUser(updateRequest);
-
-        Optional<UserResponse> updated = userService.getUserById(entity.getId());
-        assertThat(updated).isPresent();
-        assertThat(updated.get().getName()).isEqualTo("Alice Updated");
-        assertThat(updated.get().getEmail()).isEqualTo("alice.updated@example.com");
-        assertThat(updated.get().getAge()).isEqualTo(26);
+        assertThat(users)
+                .hasSize(2)
+                .extracting(UserResponse::getName)
+                .containsExactlyInAnyOrder("user1", "user2");
     }
 
     @Test
-    void testDeleteUser() {
-        UserEntity entity = new UserEntity();
-        entity.setName("Bob");
-        entity.setEmail("bob@example.com");
-        entity.setAge(40);
-        entity = userRepository.save(entity);
+    @DisplayName("Ошибка при создании пользователя с существующим email")
+    void createUser_shouldThrowIfEmailExists() {
+        createEntity("user1", "user1@example.com", 25);
+
+        assertThatThrownBy(() ->
+                userService.createUser(createRequest("user2", "user1@example.com", 33))
+        )
+                .isInstanceOf(DuplicateResourceException.class)
+                .hasMessageContaining("уже существует");
+    }
+
+    @Test
+    @DisplayName("Обновление пользователя")
+    void updateUser() {
+        var saved = createEntity("user1", "user1@example.com", 25);
+
+        userService.updateUser(updateRequest(saved.getId(), "user1_updated", "user1.updated@example.com", 26));
+
+        var updated = userService.getUserById(saved.getId()).orElseThrow();
+        assertThat(updated.getEmail()).isEqualTo("user1.updated@example.com");
+        assertThat(updated.getAge()).isEqualTo(26);
+    }
+
+    @Test
+    @DisplayName("Ошибка при обновлении, если email занят другим пользователем")
+    void updateUser_shouldThrowIfEmailUsedByAnother() {
+        var u1 = createEntity("user1", "user1@example.com", 25);
+        var u2 = createEntity("user2", "user2@example.com", 30);
+
+        var req = updateRequest(u2.getId(), "user2_updated", "user1@example.com", 31);
+
+        assertThatThrownBy(() -> userService.updateUser(req))
+                .isInstanceOf(DuplicateResourceException.class)
+                .hasMessageContaining("уже используется");
+    }
+
+    @Test
+    @DisplayName("Удаление пользователя")
+    void deleteUser() {
+        var entity = createEntity("user1", "user1@example.com", 40);
 
         userService.deleteUser(entity.getId());
 
-        Optional<UserResponse> deleted = userService.getUserById(entity.getId());
-        assertThat(deleted).isEmpty();
+        assertThat(userService.getUserById(entity.getId())).isEmpty();
     }
 
     @Test
-    void testIsEmailExists() {
-        UserEntity entity = new UserEntity();
-        entity.setName("Charlie");
-        entity.setEmail("charlie@example.com");
-        entity.setAge(35);
-        userRepository.save(entity);
+    @DisplayName("Проверка существования email")
+    void isEmailExists() {
+        createEntity("user1", "user1@example.com", 35);
 
-        assertThat(userService.isEmailExists("charlie@example.com")).isTrue();
+        assertThat(userService.isEmailExists("user1@example.com")).isTrue();
         assertThat(userService.isEmailExists("nonexistent@example.com")).isFalse();
     }
 }
